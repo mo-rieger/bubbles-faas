@@ -5,7 +5,7 @@ packages:
     environment: {}
     parameters: {}
     annotations: {}
-    functions:
+    actions:
       - name: add
         binary: false
         main: ''
