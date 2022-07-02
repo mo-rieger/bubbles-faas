@@ -87,6 +87,11 @@ func pathFromHighlight(h Highlight) string {
 }
 
 func Main(args map[string]string)  (*Response, error) {
+	if true {
+		return &Response{
+			StatusCode: 200,
+		}, nil
+	}
 	highlight, err := newHighlight(args)
 	if err != nil {
 		log.Printf("Received Bad Request %v", err)
