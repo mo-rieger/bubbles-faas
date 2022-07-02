@@ -19,21 +19,22 @@ const (
 	REPO="foambubble-highlights"
 )
 var (
+	GITHUB_CONTENTS_API_URL = fmt.Sprintf("%s/repos/%s/%s/contents", GITHUB_API_URL, OWNER, REPO)
 	GITHUB_PAT = os.Getenv("GH_PAT")
 	NotFoundError = errors.New("File not found")
 )
 
 type GitHubContent struct {
-	name string
-	path string
-	sha string
-	content string
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Sha string `json:"sha"`
+	Content string `json:"content"`
 }
 
 type Commit struct {
-	message string
-	content string
-	sha string
+	Message string `json:"message"`
+	Content string `json:"content"`
+	Sha string `json:"sha"`
 }
 
 type Highlight struct {
@@ -44,25 +45,31 @@ type Highlight struct {
 	url string
 }
 
-func newHighlight(args map[string]interface{}) (Highlight, error) {
-	path, ok := args["path"].(string)
+type Response struct {
+	StatusCode int               `json:"statusCode,omitempty"`
+	Headers    map[string]string `json:"headers,omitempty"`
+	Body       string            `json:"body,omitempty"`
+}
+
+func newHighlight(args map[string]string) (Highlight, error) {
+	path, ok := args["path"]
 	if !ok {
 		return Highlight{}, errors.New("missing path")
 	}
-	text, ok := args["text"].(string)
+	text, ok := args["text"]
 	if !ok {
 		return Highlight{}, errors.New("missing text")
 	}
 
-	host, ok := args["host"].(string)
+	host, ok := args["host"]
 	if !ok {
 		return Highlight{}, errors.New("missing host")
 	}
-	url, ok := args["url"].(string)
+	url, ok := args["url"]
 	if !ok {
 		return Highlight{}, errors.New("missing url")
 	}
-	title, ok := args["title"].(string)
+	title, ok := args["title"]
 	if !ok {
 		title = strings.ReplaceAll(path, "/", "-")
 	}
@@ -76,80 +83,90 @@ func newHighlight(args map[string]interface{}) (Highlight, error) {
 }
 
 func pathFromHighlight(h Highlight) string {
-	return url.PathEscape(fmt.Sprintf("%s/%s.md", h.host,h.title))
+	return fmt.Sprintf("%s/%s.md", url.PathEscape(h.host), url.PathEscape(h.title))
 }
 
-func Main(args map[string]interface{}) map[string]interface{} {
+func Main(args map[string]string)  (*Response, error) {
 	highlight, err := newHighlight(args)
 	if err != nil {
-		log.Fatalf("Bad Request %v", err)
+		log.Printf("Received Bad Request %v", err)
+		return &Response{
+			StatusCode: 400,
+		}, err
 	}
 	
 	client := &http.Client{}
-	
 	page, err := getFile(pathFromHighlight(highlight), client)
 	if err != nil {
 		if err != NotFoundError {
-			log.Fatalf("failed to get file, err %v", err)
+			log.Printf("failed to get file, err %v", err)
+			return &Response{
+				StatusCode: 500,
+			}, err
 		}
 		// create new page and add tag #host/title for better searchability in foam
-		page.content = fmt.Sprintf("# [%s](%s)\n#%s/%s\n", highlight.title, highlight.url, highlight.host,strings.ReplaceAll(highlight.title, " ", "-"))
+		page.Content = fmt.Sprintf("# [%s](%s)\n#%s/%s\n", highlight.title, highlight.url, highlight.host,strings.ReplaceAll(highlight.title, " ", "-"))
 	}
-	page.content += fmt.Sprintf("\n---\n\n%s\n" ,highlight.text)
+	page.Content += fmt.Sprintf("\n---\n\n%s\n" ,highlight.text)
 	err = commit(Commit{
-		content: base64.StdEncoding.EncodeToString([]byte(page.content)),
-		message: fmt.Sprintf("add new highlight from %s", highlight.host),
-		sha:     page.sha,
+		Content: base64.StdEncoding.EncodeToString([]byte(page.Content)),
+		Message: fmt.Sprintf("add new highlight from %s", highlight.host),
+		Sha:     page.Sha,
 	}, pathFromHighlight(highlight), client)
 	if err != nil {
 		log.Println("failed to commit content")
+		return &Response{
+			StatusCode: 500,
+		}, err
 	}
-	msg := make(map[string]interface{})
-	msg["body"] = fmt.Sprintf("add new highlight from %s", highlight.host)
-	return msg
+	return &Response{
+		StatusCode: 201,
+	}, nil
 }
 
 func getFile(path string, client *http.Client) (GitHubContent, error) {
 	var page GitHubContent
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/repos/%s/%s/%s", GITHUB_API_URL, OWNER, REPO, path), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/%s", GITHUB_CONTENTS_API_URL, path), nil)
 	req.Header.Add("Accept", `application/vnd.github+json`)
 	req.Header.Add("Authorization", fmt.Sprintf("token %s", GITHUB_PAT))
 	resp, err := client.Do(req)
 	if err != nil {
-		if resp.StatusCode == http.StatusNotFound {
-			return GitHubContent{}, NotFoundError
-		}
 		return GitHubContent{}, err
 	}
-
+	if resp.StatusCode == http.StatusNotFound {
+		return GitHubContent{}, NotFoundError
+	}
+	if resp.StatusCode >= 400 {
+		return GitHubContent{}, fmt.Errorf("Something went wrong: %v", resp)
+	}
 	err = json.NewDecoder(resp.Body).Decode(&page)
 	if err != nil {
-		log.Printf("cannot encode file from GitHub, err: %v", err)
 		return GitHubContent{}, err
 	}
 	defer resp.Body.Close()
-	content, err := base64.StdEncoding.DecodeString(page.content)
+	content, err := base64.StdEncoding.DecodeString(page.Content)
 	if err != nil {
 		return page, err
 	}
-	page.content = string(content)
+	page.Content = string(content)
 	return page, nil
 }
 
 func commit(commit Commit, path string, client *http.Client) error {
-	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(commit)
-
-	req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/repos/%s/%s/%s", GITHUB_API_URL, OWNER, REPO, path), &buf)
+	c, err := json.Marshal(commit)
+	req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/%s", GITHUB_CONTENTS_API_URL, path), bytes.NewReader(c))
 	if err != nil {
 		return err
 	}
 	req.Header.Add("Accept", "application/vnd.github+json")
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Authorization", fmt.Sprintf("token %s", GITHUB_PAT))
-	_, err = client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
+	}
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("Something went wrong: %v", resp)
 	}
 	return nil
 }

@@ -5,9 +5,14 @@ packages:
     environment: {}
     parameters: {}
     annotations: {}
-    actions:
+    functions:
       - name: add
+        binary: false
         main: ''
         runtime: 'go:default'
+        web: true
         parameters: {}
-        environment: {}
+        environment: 
+          GH_PAT: "${GH_PAT}"
+        annotations: {}
+        limits: {}
