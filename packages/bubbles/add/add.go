@@ -91,6 +91,29 @@ func simpleAuth(t string) bool {
 	return t == TOKEN
 }
 
+func reverse(s []string) []string {
+	a := make([]string, len(s))
+	copy(a, s)
+
+	for i := len(a)/2 - 1; i >= 0; i-- {
+		opp := len(a) - 1 - i
+		a[i], a[opp] = a[opp], a[i]
+	}
+
+	return a
+}
+
+func getTag(uri, title string) string {
+	u, err := url.Parse(uri)
+	if err != nil {
+		log.Println("failed to create tag")
+	}
+	parts := strings.Split(u.Hostname(), ".")
+	parts = reverse(parts)
+	parts = append(parts, strings.ReplaceAll(title, " ", "-"))
+	return strings.Join(parts[1:], "/")
+}
+
 func Main(args map[string]interface{})  (*Response, error) {
 	if !simpleAuth(args["token"].(string)) {
 		return &Response{
@@ -115,7 +138,8 @@ func Main(args map[string]interface{})  (*Response, error) {
 			}, err
 		}
 		// create new page and add tag #host/title for better searchability in foam
-		page.Content = fmt.Sprintf("# [%s](%s)\n#%s/%s\n", highlight.title, highlight.url, highlight.host,strings.ReplaceAll(highlight.title, " ", "-"))
+		tag := getTag(highlight.url, highlight.title)
+		page.Content = fmt.Sprintf("# [%s](%s)\n#%s\n", highlight.title, highlight.url, tag)
 	}
 	page.Content += fmt.Sprintf("\n---\n\n%s\n" ,highlight.text)
 	err = commit(Commit{
