@@ -51,25 +51,25 @@ type Response struct {
 	Body       string            `json:"body,omitempty"`
 }
 
-func newHighlight(args map[string]string) (Highlight, error) {
-	path, ok := args["path"]
+func newHighlight(args map[string]interface{}) (Highlight, error) {
+	path, ok := args["path"].(string)
 	if !ok {
 		return Highlight{}, errors.New("missing path")
 	}
-	text, ok := args["text"]
+	text, ok := args["text"].(string)
 	if !ok {
 		return Highlight{}, errors.New("missing text")
 	}
 
-	host, ok := args["host"]
+	host, ok := args["host"].(string)
 	if !ok {
 		return Highlight{}, errors.New("missing host")
 	}
-	url, ok := args["url"]
+	url, ok := args["url"].(string)
 	if !ok {
 		return Highlight{}, errors.New("missing url")
 	}
-	title, ok := args["title"]
+	title, ok := args["title"].(string)
 	if !ok {
 		title = strings.ReplaceAll(path, "/", "-")
 	}
@@ -86,12 +86,7 @@ func pathFromHighlight(h Highlight) string {
 	return fmt.Sprintf("%s/%s.md", url.PathEscape(h.host), url.PathEscape(h.title))
 }
 
-func Main(args map[string]string)  (*Response, error) {
-	if true {
-		return &Response{
-			StatusCode: 200,
-		}, nil
-	}
+func Main(args map[string]interface{})  (*Response, error) {
 	highlight, err := newHighlight(args)
 	if err != nil {
 		log.Printf("Received Bad Request %v", err)
