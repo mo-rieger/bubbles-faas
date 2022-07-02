@@ -1,17 +1,13 @@
 environment: {}
 parameters: {}
 packages:
-  - name: sample
+  - name: bubbles
     environment: {}
     parameters: {}
     annotations: {}
-    functions:
-      - name: hello
-        binary: false
+    actions:
+      - name: add
         main: ''
         runtime: 'go:default'
-        web: true
         parameters: {}
         environment: {}
-        annotations: {}
-        limits: {}
