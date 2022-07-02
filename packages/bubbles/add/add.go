@@ -21,6 +21,7 @@ const (
 var (
 	GITHUB_CONTENTS_API_URL = fmt.Sprintf("%s/repos/%s/%s/contents", GITHUB_API_URL, OWNER, REPO)
 	GITHUB_PAT = os.Getenv("GH_PAT")
+	TOKEN = os.Getenv("TOKEN")
 	NotFoundError = errors.New("File not found")
 )
 
@@ -86,12 +87,21 @@ func pathFromHighlight(h Highlight) string {
 	return fmt.Sprintf("%s/%s.md", url.PathEscape(h.host), url.PathEscape(h.title))
 }
 
+func simpleAuth(t string) bool {
+	return t == TOKEN
+}
+
 func Main(args map[string]interface{})  (*Response, error) {
+	if !simpleAuth(args["token"].(string)) {
+		return &Response{
+			StatusCode: http.StatusForbidden,
+		}, nil
+	}
 	highlight, err := newHighlight(args)
 	if err != nil {
 		log.Printf("Received Bad Request %v", err)
 		return &Response{
-			StatusCode: 400,
+			StatusCode: http.StatusBadRequest,
 		}, err
 	}
 	
@@ -101,7 +111,7 @@ func Main(args map[string]interface{})  (*Response, error) {
 		if err != NotFoundError {
 			log.Printf("failed to get file, err %v", err)
 			return &Response{
-				StatusCode: 500,
+				StatusCode: http.StatusInternalServerError,
 			}, err
 		}
 		// create new page and add tag #host/title for better searchability in foam
@@ -116,11 +126,11 @@ func Main(args map[string]interface{})  (*Response, error) {
 	if err != nil {
 		log.Println("failed to commit content")
 		return &Response{
-			StatusCode: 500,
+			StatusCode: http.StatusInternalServerError,
 		}, err
 	}
 	return &Response{
-		StatusCode: 201,
+		StatusCode: http.StatusCreated,
 	}, nil
 }
 

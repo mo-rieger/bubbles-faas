@@ -14,5 +14,6 @@ packages:
         parameters: {}
         environment: 
           GH_PAT: "${GH_PAT}"
+          TOKEN: "${TOKEN}"
         annotations: {}
         limits: {}
