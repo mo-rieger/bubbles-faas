@@ -15,5 +15,7 @@ packages:
         environment: 
           GH_PAT: "${GH_PAT}"
           TOKEN: "${TOKEN}"
+          OWNER: "${OWNER}"
+          REPO: "${REPO}"
         annotations: {}
         limits: {}
