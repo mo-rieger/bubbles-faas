@@ -15,35 +15,36 @@ import (
 
 const (
 	GITHUB_API_URL = "https://api.github.com"
-	OWNER = "mo-rieger"
-	REPO="foambubble-highlights"
 )
+
 var (
 	GITHUB_CONTENTS_API_URL = fmt.Sprintf("%s/repos/%s/%s/contents", GITHUB_API_URL, OWNER, REPO)
-	GITHUB_PAT = os.Getenv("GH_PAT")
-	TOKEN = os.Getenv("TOKEN")
-	NotFoundError = errors.New("File not found")
+	GITHUB_PAT              = os.Getenv("GH_PAT")
+	OWNER                   = os.Getenv("OWNER")
+	REPO                    = os.Getenv("REPO")
+	TOKEN                   = os.Getenv("TOKEN")
+	NotFoundError           = errors.New("File not found")
 )
 
 type GitHubContent struct {
-	Name string `json:"name"`
-	Path string `json:"path"`
-	Sha string `json:"sha"`
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Sha     string `json:"sha"`
 	Content string `json:"content"`
 }
 
 type Commit struct {
 	Message string `json:"message"`
 	Content string `json:"content"`
-	Sha string `json:"sha"`
+	Sha     string `json:"sha"`
 }
 
 type Highlight struct {
-	host string
-	path string
+	host  string
+	path  string
 	title string
-	text string
-	url string
+	text  string
+	url   string
 }
 
 type Response struct {
@@ -75,11 +76,11 @@ func newHighlight(args map[string]interface{}) (Highlight, error) {
 		title = strings.ReplaceAll(path, "/", "-")
 	}
 	return Highlight{
-		host: host,
-		path: path,
+		host:  host,
+		path:  path,
 		title: title,
-		text: text,
-		url: url,
+		text:  text,
+		url:   url,
 	}, nil
 }
 
@@ -91,30 +92,17 @@ func simpleAuth(t string) bool {
 	return t == TOKEN
 }
 
-func reverse(s []string) []string {
-	a := make([]string, len(s))
-	copy(a, s)
-
-	for i := len(a)/2 - 1; i >= 0; i-- {
-		opp := len(a) - 1 - i
-		a[i], a[opp] = a[opp], a[i]
+// getTag creates a reverse tag from a host name
+// blog.example.com will result in example
+func getTag(host string) string {
+	parts := strings.Split(host, ".")
+	if len(parts) > 1 {
+		return parts[len(parts)-2]
 	}
-
-	return a
+	return parts[0]
 }
 
-func getTag(uri, title string) string {
-	u, err := url.Parse(uri)
-	if err != nil {
-		log.Println("failed to create tag")
-	}
-	parts := strings.Split(u.Hostname(), ".")
-	parts = reverse(parts)
-	parts = append(parts, strings.ReplaceAll(title, " ", "-"))
-	return strings.Join(parts[1:], "/")
-}
-
-func Main(args map[string]interface{})  (*Response, error) {
+func Main(args map[string]interface{}) (*Response, error) {
 	if !simpleAuth(args["token"].(string)) {
 		return &Response{
 			StatusCode: http.StatusForbidden,
@@ -127,7 +115,7 @@ func Main(args map[string]interface{})  (*Response, error) {
 			StatusCode: http.StatusBadRequest,
 		}, err
 	}
-	
+
 	client := &http.Client{}
 	page, err := getFile(pathFromHighlight(highlight), client)
 	if err != nil {
@@ -137,11 +125,10 @@ func Main(args map[string]interface{})  (*Response, error) {
 				StatusCode: http.StatusInternalServerError,
 			}, err
 		}
-		// create new page and add tag #host/title for better searchability in foam
-		tag := getTag(highlight.url, highlight.title)
-		page.Content = fmt.Sprintf("# [%s](%s)\n#%s\n", highlight.title, highlight.url, tag)
+		// create new page and add tag #domain/subdomain
+		page.Content = fmt.Sprintf("# [%s](%s)\n#%s\n", highlight.title, highlight.url, getTag(highlight.host))
 	}
-	page.Content += fmt.Sprintf("\n---\n\n%s\n" ,highlight.text)
+	page.Content += fmt.Sprintf("\n---\n\n%s\n", highlight.text)
 	err = commit(Commit{
 		Content: base64.StdEncoding.EncodeToString([]byte(page.Content)),
 		Message: fmt.Sprintf("add new highlight from %s", highlight.host),
