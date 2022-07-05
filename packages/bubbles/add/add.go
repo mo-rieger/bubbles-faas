@@ -85,7 +85,7 @@ func newHighlight(args map[string]interface{}) (Highlight, error) {
 }
 
 func pathFromHighlight(h Highlight) string {
-	return fmt.Sprintf("web/%s/%s.md", url.PathEscape(getTag(h.host)), url.PathEscape(h.title))
+	return fmt.Sprintf("web/%s/%s.md", url.PathEscape(getTag(h.host)), url.PathEscape(strings.ReplaceAll(h.title, " ", "-")))
 }
 
 func simpleAuth(t string) bool {
@@ -126,7 +126,7 @@ func Main(args map[string]interface{}) (*Response, error) {
 			}, err
 		}
 		// create new page and add tag #domain/subdomain
-		page.Content = fmt.Sprintf("---\ntags: %s web\ntype: web\n---\n\n # [%s](%s)\n", getTag(highlight.host),highlight.title, highlight.url)
+		page.Content = fmt.Sprintf("---\ntags: %s\ntype: web\n---\n\n # [%s](%s)\n", getTag(highlight.host),highlight.title, highlight.url)
 	}
 	page.Content += fmt.Sprintf("\n---\n\n%s\n", highlight.text)
 	err = commit(Commit{
